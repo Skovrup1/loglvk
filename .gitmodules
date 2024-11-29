@@ -1,0 +1,18 @@
+[submodule "modules/volk"]
+	path = modules/volk
+	url = git@github.com:zeux/volk.git
+[submodule "modules/SDL"]
+	path = modules/SDL
+	url = git@github.com:libsdl-org/SDL.git
+[submodule "modules/spdlog"]
+	path = modules/spdlog
+	url = git@github.com:gabime/spdlog.git
+[submodule "modules/VulkanMemoryAllocator"]
+	path = modules/VulkanMemoryAllocator
+	url = git@github.com:GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "modules/vk-bootstrap"]
+	path = modules/vk-bootstrap
+	url = git@github.com:charles-lunarg/vk-bootstrap.git
+[submodule "modules/glm"]
+	path = modules/glm
+	url = git@github.com:g-truc/glm.git
