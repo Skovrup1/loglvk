@@ -14,7 +14,7 @@ add_executable(${PROJECT_NAME} ${LOGLVK_SOURCES})
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${LOGLVK_HEADERS})
 
-#find_package(Vulkan REQUIRED)
+find_package(Vulkan REQUIRED)
 
 add_subdirectory(modules/volk)
 target_link_libraries(${PROJECT_NAME} PRIVATE volk)
@@ -46,11 +46,11 @@ target_compile_options(${PROJECT_NAME} PUBLIC
     -Wtype-limits
     -Wformat-nonliteral
     -Wmissing-declarations
-    -fsanitize=address
-    -fno-omit-frame-pointer
+    #-fsanitize=address
+    #-fno-omit-frame-pointer
     -pipe
     #-mavx2
     #-O3
 )
 
-target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
+#target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <limits>
 #include <cstdint>
+#include <limits>
 
 #include <volk.h>
 
@@ -10,8 +10,8 @@
 #include <VkBootstrap.h>
 
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
-#include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
@@ -42,4 +42,13 @@ constexpr bool DEBUG_BUILD = true;
 
 constexpr u64 MAX_TIMEOUT_DURATION = std::numeric_limits<u64>::max();
 
-void vk_check(VkResult err);
+char const *string_vkresult(VkResult input_value);
+
+#define vk_check(x)                                                            \
+    do {                                                                       \
+        VkResult err = x;                                                      \
+        if (err && DEBUG_BUILD) {                                              \
+            SPDLOG_DEBUG("Detected Vulkan error: {}\n", string_vkresult(err)); \
+            abort();                                                           \
+        }                                                                      \
+    } while (0)

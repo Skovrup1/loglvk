@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-const char *string_vkresult(VkResult input_value) {
+char const *string_vkresult(VkResult input_value) {
     switch (input_value) {
     case VK_SUCCESS:
         return "VK_SUCCESS";
@@ -100,11 +100,5 @@ const char *string_vkresult(VkResult input_value) {
         return "VK_INCOMPATIBLE_SHADER_BINARY_EXT";
     default:
         return "Unhandled VkResult";
-    }
-}
-
-void vk_check(VkResult err) {
-    if (err && DEBUG_BUILD) {
-        SPDLOG_DEBUG("Detected Vulkan error: {}\n", string_vkresult(err));
     }
 }
