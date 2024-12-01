@@ -2,6 +2,39 @@
 
 #include "core.hpp"
 
+struct AllocImage {
+    VkImage image;
+    VkImageView view;
+    VmaAllocation allocation;
+    VkExtent3D extent;
+    VkFormat format;
+};
+
+struct AllocatedBuffer {
+    VkBuffer buffer;
+    VmaAllocation allocation;
+    VmaAllocationInfo info;
+};
+
+struct Vertex {
+    glm::vec3 position;
+    float uv_x;
+    glm::vec3 normal;
+    float uv_y;
+    glm::vec4 color;
+};
+
+struct GPUMeshBuffers {
+    AllocatedBuffer index_buffer;
+    AllocatedBuffer vertex_buffer;
+    VkDeviceAddress vertex_device_address;
+};
+
+struct GPUDrawPushConstants {
+    glm::mat4 worldMatrix;
+    VkDeviceAddress vertexBuffer;
+};
+
 namespace util {
 
 void transition_image_color(VkCommandBuffer cmd, VkImage image,

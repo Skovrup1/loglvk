@@ -1,9 +1,10 @@
 #include "core.hpp"
 
+#include "deletion_queue.hpp"
 #include "pipeline.hpp"
 #include "shader.hpp"
 #include "vktypes.hpp"
-#include "deletion_queue.hpp"
+#include <span>
 
 struct FrameData {
     VkSemaphore swapchain_semaphore, render_semaphore;
@@ -13,14 +14,6 @@ struct FrameData {
     VkCommandBuffer command_buffer;
 
     DeletionQueue deletion_queue;
-};
-
-struct AllocImage {
-    VkImage image = nullptr;
-    VkImageView view = nullptr;
-    VmaAllocation allocation = nullptr;
-    VkExtent3D extent;
-    VkFormat format;
 };
 
 u32 w_width = 800;
@@ -62,6 +55,135 @@ VkDescriptorSet descriptor_set;
 
 VkPipeline graphics_pipeline;
 VkPipelineLayout pipeline_layout;
+
+void imm_submit(std::function<void(VkCommandBuffer cmd)> &&func) {
+    vk_check(vkResetFences(device, 1, &imm_fence));
+    vk_check(vkResetCommandBuffer(imm_command_buffer, 0));
+
+    VkCommandBuffer cmd = imm_command_buffer;
+
+    VkCommandBufferBeginInfo cmd_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    vk_check(vkBeginCommandBuffer(cmd, &cmd_begin_info));
+
+    func(cmd);
+
+    vk_check(vkEndCommandBuffer(cmd));
+
+    VkCommandBufferSubmitInfo cmd_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .commandBuffer = cmd,
+    };
+
+    VkSubmitInfo2 submit{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &cmd_info,
+    };
+
+    vk_check(vkQueueSubmit2(graphics_queue, 1, &submit, imm_fence));
+    vk_check(
+        vkWaitForFences(device, 1, &imm_fence, true, MAX_TIMEOUT_DURATION));
+}
+
+AllocatedBuffer create_buffer(size_t alloc_size, VkBufferUsageFlags usage) {
+    VkBufferCreateInfo buffer_info{.sType =
+                                       VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                   .size = alloc_size,
+                                   .usage = usage};
+
+    VmaAllocationCreateInfo alloc_info{
+        .usage = VMA_MEMORY_USAGE_AUTO,
+    };
+
+    AllocatedBuffer buffer;
+    vk_check(vmaCreateBuffer(allocator, &buffer_info, &alloc_info,
+                             &buffer.buffer, &buffer.allocation, &buffer.info));
+
+    return buffer;
+}
+
+AllocatedBuffer create_buffer_staging(size_t alloc_size,
+                                      VkBufferUsageFlags usage) {
+    VkBufferCreateInfo buffer_info{.sType =
+                                       VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                                   .size = alloc_size,
+                                   .usage = usage};
+
+    VmaAllocationCreateInfo alloc_info{
+        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT |
+                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO,
+    };
+
+    AllocatedBuffer buffer;
+    vk_check(vmaCreateBuffer(allocator, &buffer_info, &alloc_info,
+                             &buffer.buffer, &buffer.allocation, &buffer.info));
+
+    return buffer;
+}
+
+void destroy_buffer(AllocatedBuffer buffer) {
+    vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
+}
+
+GPUMeshBuffers upload_mesh(std::span<u32> indices, std::span<Vertex> vertices) {
+    usize const index_buffer_bsize = indices.size() * sizeof(u32);
+    usize const vertex_buffer_bsize = vertices.size() * sizeof(Vertex);
+
+    GPUMeshBuffers mesh;
+
+    mesh.vertex_buffer = create_buffer(
+        vertex_buffer_bsize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                 VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+
+    VkBufferDeviceAddressInfo address_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+    };
+    mesh.vertex_device_address =
+        vkGetBufferDeviceAddress(device, &address_info);
+
+    mesh.index_buffer =
+        create_buffer(index_buffer_bsize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                                              VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+    AllocatedBuffer staging =
+        create_buffer_staging(vertex_buffer_bsize + index_buffer_bsize,
+                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+    void *data = staging.info.pMappedData;
+
+    memcpy(data, vertices.data(), vertex_buffer_bsize);
+    memcpy((std::byte *)data + vertex_buffer_bsize, vertices.data(),
+           vertex_buffer_bsize);
+
+    imm_submit([&](VkCommandBuffer cmd) {
+        VkBufferCopy vertexCopy{
+            .srcOffset = 0,
+            .dstOffset = 0,
+            .size = vertex_buffer_bsize,
+        };
+
+        vkCmdCopyBuffer(cmd, staging.buffer, mesh.vertex_buffer.buffer, 1,
+                        &vertexCopy);
+
+        VkBufferCopy indexCopy{
+            .srcOffset = vertex_buffer_bsize,
+            .dstOffset = 0,
+            .size = index_buffer_bsize,
+        };
+
+        vkCmdCopyBuffer(cmd, staging.buffer, mesh.index_buffer.buffer, 1,
+                        &indexCopy);
+    });
+
+    destroy_buffer(staging);
+
+    return mesh;
+}
 
 bool init_logger() {
     auto logger = spdlog::stderr_color_mt("stderr");
@@ -454,43 +576,11 @@ void init_graphic_pipeline() {
 }
 
 void init_pipelines() {
-    //init_compute_pipeline();
+    // init_compute_pipeline();
     init_graphic_pipeline();
 }
 
 void init_imgui() {}
-
-void imm_submit(std::function<void(VkCommandBuffer cmd)> &&func) {
-    vk_check(vkResetFences(device, 1, &imm_fence));
-    vk_check(vkResetCommandBuffer(imm_command_buffer, 0));
-
-    VkCommandBuffer cmd = imm_command_buffer;
-
-    VkCommandBufferBeginInfo cmd_begin_info{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    };
-    vk_check(vkBeginCommandBuffer(cmd, &cmd_begin_info));
-
-    func(cmd);
-
-    vk_check(vkEndCommandBuffer(cmd));
-
-    VkCommandBufferSubmitInfo cmd_info{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .commandBuffer = cmd,
-    };
-
-    VkSubmitInfo2 submit{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &cmd_info,
-    };
-
-    vk_check(vkQueueSubmit2(graphics_queue, 1, &submit, imm_fence));
-    vk_check(
-        vkWaitForFences(device, 1, &imm_fence, true, MAX_TIMEOUT_DURATION));
-}
 
 FrameData &get_current_frame() { return frames[frame_id % FRAME_OVERLAP]; }
 
@@ -760,13 +850,13 @@ int main() {
 
     init_sync_structs();
 
-    //init_descriptors();
+    // init_descriptors();
 
     init_pipelines();
 
-    //init_imgui();
+    // init_imgui();
 
-    //init_default_data();
+    // init_default_data();
 
     bool is_running = true;
     while (is_running) {
