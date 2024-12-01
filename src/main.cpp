@@ -56,6 +56,10 @@ VkDescriptorSet descriptor_set;
 VkPipeline graphics_pipeline;
 VkPipelineLayout pipeline_layout;
 
+GPUMeshBuffers rectangle;
+
+DeletionQueue deletion_queue;
+
 void imm_submit(std::function<void(VkCommandBuffer cmd)> &&func) {
     vk_check(vkResetFences(device, 1, &imm_fence));
     vk_check(vkResetCommandBuffer(imm_command_buffer, 0));
@@ -142,6 +146,7 @@ GPUMeshBuffers upload_mesh(std::span<u32> indices, std::span<Vertex> vertices) {
 
     VkBufferDeviceAddressInfo address_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = mesh.vertex_buffer.buffer,
     };
     mesh.vertex_device_address =
         vkGetBufferDeviceAddress(device, &address_info);
@@ -157,7 +162,7 @@ GPUMeshBuffers upload_mesh(std::span<u32> indices, std::span<Vertex> vertices) {
     void *data = staging.info.pMappedData;
 
     memcpy(data, vertices.data(), vertex_buffer_bsize);
-    memcpy((std::byte *)data + vertex_buffer_bsize, vertices.data(),
+    memcpy((std::byte *)data + vertex_buffer_bsize, indices.data(),
            vertex_buffer_bsize);
 
     imm_submit([&](VkCommandBuffer cmd) {
@@ -538,20 +543,28 @@ void init_descriptors() {}
 void init_compute_pipeline() {}
 
 void init_graphic_pipeline() {
-    std::string vert_path = "shaders/simple.vert.glsl.spv";
+    std::string vert_path = "shaders/hello.vert.glsl.spv";
     VkShaderModule vert_shader = load_shader_module(device, vert_path.c_str());
     if (!vert_shader) {
         SPDLOG_CRITICAL("failed to load vert shader module from {}", vert_path);
     }
 
-    std::string frag_path = "shaders/simple.frag.glsl.spv";
+    std::string frag_path = "shaders/hello.frag.glsl.spv";
     VkShaderModule frag_shader = load_shader_module(device, frag_path.c_str());
     if (!frag_shader) {
         SPDLOG_CRITICAL("failed to load frag shader module from {}", frag_path);
     }
 
+    VkPushConstantRange buffer_range{
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .offset = 0,
+        .size = sizeof(GPUDrawPushConstants),
+    };
+
     VkPipelineLayoutCreateInfo pipeline_layout_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &buffer_range,
     };
 
     vk_check(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr,
@@ -581,6 +594,37 @@ void init_pipelines() {
 }
 
 void init_imgui() {}
+
+void init_default_data() {
+    std::array<Vertex, 4> rect_vertices;
+
+    rect_vertices[0].position = {0.5, -0.5, 0};
+    rect_vertices[1].position = {0.5, 0.5, 0};
+    rect_vertices[2].position = {-0.5, -0.5, 0};
+    rect_vertices[3].position = {-0.5, 0.5, 0};
+
+    rect_vertices[0].color = {0, 0, 0, 1};
+    rect_vertices[1].color = {0.5, 0.5, 0.5, 1};
+    rect_vertices[2].color = {1, 0, 0, 1};
+    rect_vertices[3].color = {0, 1, 0, 1};
+
+    std::array<u32, 6> rect_indices;
+
+    rect_indices[0] = 0;
+    rect_indices[1] = 1;
+    rect_indices[2] = 2;
+
+    rect_indices[3] = 2;
+    rect_indices[4] = 1;
+    rect_indices[5] = 3;
+
+    rectangle = upload_mesh(rect_indices, rect_vertices);
+
+    deletion_queue.push_function([&]() {
+        destroy_buffer(rectangle.index_buffer);
+        destroy_buffer(rectangle.vertex_buffer);
+    });
+}
 
 FrameData &get_current_frame() { return frames[frame_id % FRAME_OVERLAP]; }
 
@@ -638,7 +682,17 @@ void render_triangle(VkCommandBuffer cmd) {
     };
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    vkCmdDraw(cmd, 3, 1, 0, 0);
+    GPUDrawPushConstants push_constants;
+    push_constants.worldMatrix = glm::mat4{1.f};
+    push_constants.vertexBuffer = rectangle.vertex_device_address;
+
+    vkCmdPushConstants(cmd, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                       sizeof(GPUDrawPushConstants), &push_constants);
+
+    vkCmdBindIndexBuffer(cmd, rectangle.index_buffer.buffer, 0,
+                         VK_INDEX_TYPE_UINT32);
+
+    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
 
     vkCmdEndRendering(cmd);
 }
@@ -821,6 +875,8 @@ void free_on_exit() {
 
     // vkDestroyDescriptorPool(device, pool, nullptr);
     // vkDestroyDescriptorSetLayout(device, descriptor_layout, nullptr);
+    
+    deletion_queue.flush();
 
     vkDestroyFence(device, imm_fence, nullptr);
 
@@ -856,7 +912,7 @@ int main() {
 
     // init_imgui();
 
-    // init_default_data();
+    init_default_data();
 
     bool is_running = true;
     while (is_running) {
