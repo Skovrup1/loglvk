@@ -699,16 +699,18 @@ void init_descriptors() {
 void init_compute_pipeline() {}
 
 void init_graphic_pipeline() {
-    std::string vert_path = "shaders/texture.vert.glsl.spv";
+    std::string vert_path = "shaders/lighting.vert.glsl.spv";
     VkShaderModule vert_shader = load_shader_module(device, vert_path.c_str());
     if (!vert_shader) {
-        spdlog::critical("failed to load vert shader module from {}", vert_path);
+        spdlog::critical("failed to load vert shader module from {}",
+                         vert_path);
     }
 
-    std::string frag_path = "shaders/texture.frag.glsl.spv";
+    std::string frag_path = "shaders/lighting.frag.glsl.spv";
     VkShaderModule frag_shader = load_shader_module(device, frag_path.c_str());
     if (!frag_shader) {
-        spdlog::critical("failed to load frag shader module from {}", frag_path);
+        spdlog::critical("failed to load frag shader module from {}",
+                         frag_path);
     }
 
     VkPushConstantRange buffer_range{
@@ -753,42 +755,94 @@ void init_pipelines() {
 
 void init_imgui() {}
 
+void init_cube() {
+    // Define the 8 vertices of the cube
+    std::array<Vertex, 8> cube_vertices;
+
+    cube_vertices[0].position = {0.5, -0.5, 0.5};   // Front bottom right
+    cube_vertices[1].position = {0.5, 0.5, 0.5};    // Front top right
+    cube_vertices[2].position = {-0.5, -0.5, 0.5};  // Front bottom left
+    cube_vertices[3].position = {-0.5, 0.5, 0.5};   // Front top left
+    cube_vertices[4].position = {0.5, -0.5, -0.5};  // Back bottom right
+    cube_vertices[5].position = {0.5, 0.5, -0.5};   // Back top right
+    cube_vertices[6].position = {-0.5, -0.5, -0.5}; // Back bottom left
+    cube_vertices[7].position = {-0.5, 0.5, -0.5};  // Back top left
+
+    // Define the 12 triangles (2 per face) using indices
+    std::array<u32, 36> cube_indices;
+
+    // Front face
+    cube_indices[0] = 0;
+    cube_indices[1] = 1;
+    cube_indices[2] = 2;
+    cube_indices[3] = 2;
+    cube_indices[4] = 1;
+    cube_indices[5] = 3;
+
+    // Back face
+    cube_indices[6] = 4;
+    cube_indices[7] = 6;
+    cube_indices[8] = 5;
+    cube_indices[9] = 5;
+    cube_indices[10] = 6;
+    cube_indices[11] = 7;
+
+    // Top face
+    cube_indices[12] = 1;
+    cube_indices[13] = 5;
+    cube_indices[14] = 3;
+    cube_indices[15] = 3;
+    cube_indices[16] = 5;
+    cube_indices[17] = 7;
+
+    // Bottom face
+    cube_indices[18] = 0;
+    cube_indices[19] = 2;
+    cube_indices[20] = 4;
+    cube_indices[21] = 4;
+    cube_indices[22] = 2;
+    cube_indices[23] = 6;
+
+    // Right face
+    cube_indices[24] = 0;
+    cube_indices[25] = 4;
+    cube_indices[26] = 1;
+    cube_indices[27] = 1;
+    cube_indices[28] = 4;
+    cube_indices[29] = 5;
+
+    // Left face
+    cube_indices[30] = 2;
+    cube_indices[31] = 3;
+    cube_indices[32] = 6;
+    cube_indices[33] = 6;
+    cube_indices[34] = 3;
+    cube_indices[35] = 7;
+
+    rectangle = upload_mesh(cube_indices, cube_vertices);
+}
+
 void init_default_data() {
-    std::array<Vertex, 4> rect_vertices;
+    /*    std::array<Vertex, 4> rect_vertices;
 
-    rect_vertices[0].position = {0.5, -0.5, 0};
-    rect_vertices[1].position = {0.5, 0.5, 0};
-    rect_vertices[2].position = {-0.5, -0.5, 0};
-    rect_vertices[3].position = {-0.5, 0.5, 0};
+        rect_vertices[0].position = {0.5, -0.5, 0};
+        rect_vertices[1].position = {0.5, 0.5, 0};
+        rect_vertices[2].position = {-0.5, -0.5, 0};
+        rect_vertices[3].position = {-0.5, 0.5, 0};
 
-    rect_vertices[0].color = {0, 0, 0, 1};
-    rect_vertices[1].color = {0.5, 0.5, 0.5, 1};
-    rect_vertices[2].color = {1, 0, 0, 1};
-    rect_vertices[3].color = {0, 1, 0, 1};
+        std::array<u32, 6> rect_indices;
 
-    rect_vertices[0].uv_x = 0.f;
-    rect_vertices[0].uv_y = 1.f;
+        rect_indices[0] = 0;
+        rect_indices[1] = 1;
+        rect_indices[2] = 2;
 
-    rect_vertices[1].uv_x = 1.f;
-    rect_vertices[1].uv_y = 1.f;
+        rect_indices[3] = 2;
+        rect_indices[4] = 1;
+        rect_indices[5] = 3;
 
-    rect_vertices[2].uv_x = 0.f;
-    rect_vertices[2].uv_y = 0.f;
+        rectangle = upload_mesh(rect_indices, rect_vertices);*/
 
-    rect_vertices[3].uv_x = 1.0f;
-    rect_vertices[3].uv_y = 0.0f;
-
-    std::array<u32, 6> rect_indices;
-
-    rect_indices[0] = 0;
-    rect_indices[1] = 1;
-    rect_indices[2] = 2;
-
-    rect_indices[3] = 2;
-    rect_indices[4] = 1;
-    rect_indices[5] = 3;
-
-    rectangle = upload_mesh(rect_indices, rect_vertices);
+    init_cube();
 
     single_img = load_image("textures/brick_wall.png");
 
@@ -880,9 +934,22 @@ void render_triangle(VkCommandBuffer cmd) {
     };
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    GPUDrawPushConstants push_constants;
-    push_constants.worldMatrix = glm::mat4{1.f};
-    push_constants.vertexBuffer = rectangle.vertex_device_address;
+    glm::mat4 model = glm::mat4(1.f);
+    model = glm::rotate(model, glm::radians(-45.f), glm::vec3(0.f, 1.f, 0.f));
+    model = glm::rotate(model, glm::radians(-45.f), glm::vec3(1.f, 0.f, 0.f));
+    glm::mat4 view = glm::translate(glm::vec3{0, 0, -5});
+    glm::mat4 proj =
+        glm::perspective(glm::radians(70.f),
+                         static_cast<f32>(render_extent.width) /
+                             static_cast<f32>(render_extent.height),
+                         0.1f, 10000.f);
+
+    proj[1][1] *= -1;
+
+    GPUDrawPushConstants push_constants{
+        .mvp = proj * view * model,
+        .vertex_buffer = rectangle.vertex_device_address,
+    };
 
     vkCmdPushConstants(cmd, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                        sizeof(GPUDrawPushConstants), &push_constants);
@@ -890,7 +957,7 @@ void render_triangle(VkCommandBuffer cmd) {
     vkCmdBindIndexBuffer(cmd, rectangle.index_buffer.buffer, 0,
                          VK_INDEX_TYPE_UINT32);
 
-    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+    vkCmdDrawIndexed(cmd, 36, 1, 0, 0, 0);
 
     vkCmdEndRendering(cmd);
 }
@@ -1074,8 +1141,7 @@ void free_on_exit() {
         frames[i].deletion_queue.flush();
     }
 
-    // vkDestroyDescriptorPool(device, pool, nullptr);
-    // vkDestroyDescriptorSetLayout(device, descriptor_layout, nullptr);
+    destroy_image(single_img);
 
     deletion_queue.flush();
 
