@@ -10,7 +10,7 @@ struct AllocImage {
     VkFormat format;
 };
 
-struct AllocatedBuffer {
+struct AllocBuffer {
     VkBuffer buffer;
     VmaAllocation allocation;
     VmaAllocationInfo info;
@@ -25,8 +25,8 @@ struct Vertex {
 };
 
 struct GPUMeshBuffers {
-    AllocatedBuffer index_buffer;
-    AllocatedBuffer vertex_buffer;
+    AllocBuffer index_buffer;
+    AllocBuffer vertex_buffer;
     VkDeviceAddress vertex_device_address;
 };
 

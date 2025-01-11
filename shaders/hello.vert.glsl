@@ -24,7 +24,7 @@ layout( push_constant ) uniform constants {
 } PushConstants;
 
 void main() {
-    //load vertex data from device adress
+    //load vertex data from device address
     Vertex v = PushConstants.vertexBuffer.vertices[gl_VertexIndex];
 
     //output data

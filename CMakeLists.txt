@@ -49,8 +49,10 @@ target_compile_options(${PROJECT_NAME} PUBLIC
     #-fsanitize=address
     #-fno-omit-frame-pointer
     -pipe
-    #-mavx2
+    #-march=native
     #-O3
+    -g
+    -O0
 )
 
 #target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
