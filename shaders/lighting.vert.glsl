@@ -26,7 +26,7 @@ void main() {
     // load vertex data from device address
     Vertex v = push_constants.vertex_buffer.vertices[gl_VertexIndex];
 
-    gl_Position = mvp * vec4(v.position, 1.0f);
+    gl_Position = push_constants.mvp * vec4(v.position, 1.0f);
     out_color = v.color.xyz;
     out_uv.x = v.uv_x;
     out_uv.y = v.uv_y;
